@@ -2,7 +2,7 @@
 
 > **One endpoint. More free AI than any single provider. Less rate limit headaches.**
 
-Don't want to pay $$/month to use AI Models? RelayFreeLLM is an open-source gateway that combines **8 free-tier providers** into a single OpenAI-compatible API — so you get aggregately more free inference with automatic failover.
+Don't want to pay $$/month to use AI Models? RelayFreeLLM is an open-source gateway that combines **multiple free-tier providers** into a single OpenAI-compatible API — so you get aggregately more free inference with automatic failover.
 
 ```
 # Your existing code works. Just change the URL.
@@ -50,7 +50,7 @@ No code changes. No retry logic. No 429 errors breaking your app.
 | **Self-hosters** | Combine Ollama privacy with cloud capacity |
 | **Researchers** | Batch queries across providers for higher throughput |
 
-**Community:** 75 GitHub stars, 7 forks, 8 providers supported. Active development — 38+ commits in 6 weeks.
+**Community:** 90+ GitHub stars, 10+ forks, 8 providers supported. Active development — 40+ commits in 8 weeks.
 
 ---
 
