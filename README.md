@@ -38,6 +38,7 @@ No code changes. No retry logic. No 429 errors breaking your app.
 | **Intent-Based Routing** | `model_type=coding`, `model_scale=large`, `model_name=deepseek` — tell us what you need, not which API to call. |
 | **Real-time Streaming** | Full SSE streaming from every backend provider. |
 | **Local + Cloud** | Mix your private Ollama instance with cloud free tiers seamlessly. |
+| **Admin Dashboard** | Visual editor for provider limits and real-time usage monitoring at [`/admin`](http://localhost:8000/admin) — no manual JSON editing or server restarts. |
 
 ---
 
@@ -116,7 +117,10 @@ TOTAL: 21/21 models available.
 python -m src.server
 ```
 
-### 4. Use it
+### 5. Open the Admin Dashboard
+Once the server is running, open [`http://localhost:8000/admin`](http://localhost:8000/admin) in your browser to manage rate limits, add/remove models, and monitor usage in real time.
+
+### 6. Use it
 ```python
 from openai import OpenAI
 
@@ -134,6 +138,28 @@ response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello!"}]
 )
 ```
+
+---
+
+## Admin Dashboard
+
+Manage everything from your browser. The admin dashboard at [`http://localhost:8000/admin`](http://localhost:8000/admin) provides a visual interface for managing provider model limits and viewing real-time usage statistics — no need to edit JSON files by hand or restart the server.
+
+### Limits Tab
+
+- **Providers** are displayed as collapsible cards, each showing its models in an editable table.
+- **Edit any field inline**: model name, type (text/coding/image/etc.), scale (large/medium/small), max context length, and all 7 rate-limit values (requests/tokens per second/minute/hour/day).
+- **Add/remove** models per provider, or add/remove entire providers.
+- **Save** writes your changes to `provider_model_limits.json` and hot-reloads the rate-limit tracker — no server restart required.
+
+### Usage Tab
+
+- **Summary cards** show total requests, prompt tokens, completion tokens, and total tokens across all providers.
+- **Per-provider breakdown** tables list each model's individual usage.
+- **Reset Stats** zeros out all counters in `usage_stats.json` with a confirmation prompt.
+- Data auto-refreshes every 30 seconds.
+
+All data is stored in JSON files — no database required.
 
 ---
 
@@ -209,13 +235,13 @@ curl http://localhost:8000/v1/models?type=coding&scale=large
 curl http://localhost:8000/v1/usage
 ```
 
-### Admin Endpoints (`/admin`)
+### Admin Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/admin` | Admin dashboard UI |
 | `GET` | `/admin/api/limits` | Get current provider model limits |
-| `PUT` | `/admin/api/limits` | Update and persist limits |
+| `PUT` | `/admin/api/limits` | Update and persist limits (hot-reloaded immediately) |
 | `GET` | `/admin/api/usage` | Get usage statistics |
 | `POST` | `/admin/api/usage/reset` | Reset usage stats to zero |
 
@@ -268,37 +294,6 @@ Default rate limits in [`provider_model_limits.json`](src/provider_model_limits.
   ]
 }
 ```
-
----
-
-## Admin Dashboard
-
-The admin dashboard at [`http://localhost:8000/admin`](http://localhost:8000/admin) provides a visual interface for managing provider model limits and viewing usage statistics — no need to edit JSON files by hand.
-
-### Limits Tab
-
-- **Providers** are displayed as collapsible cards, each showing its models in an editable table.
-- **Edit any field inline**: model name, type (text/coding/image/etc.), scale (large/medium/small), max context length, and all 7 rate-limit values (requests/tokens per second/minute/hour/day).
-- **Add/remove** models per provider, or add/remove entire providers.
-- **Save** writes your changes to `provider_model_limits.json` and hot-reloads the rate-limit tracker — no server restart required.
-
-### Usage Tab
-
-- **Summary cards** show total requests, prompt tokens, completion tokens, and total tokens across all providers.
-- **Per-provider breakdown** tables list each model's individual usage.
-- **Reset Stats** zeros out all counters in `usage_stats.json` with a confirmation prompt.
-- Data auto-refreshes every 30 seconds.
-
-### API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/admin/api/limits` | Get current provider model limits |
-| `PUT` | `/admin/api/limits` | Update and persist limits (hot-reloaded immediately) |
-| `GET` | `/admin/api/usage` | Get usage statistics |
-| `POST` | `/admin/api/usage/reset` | Reset usage stats to zero |
-
-All data is stored in JSON files — no database required.
 
 ---
 
