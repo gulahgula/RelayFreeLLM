@@ -790,7 +790,7 @@ async function performStreamingSend() {
   try {
     const body = {
       model: state.model,
-      messages: state.messages.filter(m => m.role !== 'system').map(m => ({
+      messages: state.messages.filter(m => m.role !== 'system' && !(m.streaming && !m.content)).map(m => ({
         role: m.role === 'error' ? 'assistant' : m.role,
         content: m.content,
       })),
