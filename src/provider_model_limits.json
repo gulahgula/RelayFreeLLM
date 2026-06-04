@@ -17,7 +17,7 @@
             "tokens_per_hour": 1000000,
             "tokens_per_day": 1000000
           },
-          "Max_Context_Length": 65536
+          "Max_Context_Length": 64000
         }
       ]
     },
@@ -37,7 +37,8 @@
             "tokens_per_minute": 12000,
             "tokens_per_hour": 30000,
             "tokens_per_day": 100000
-          }
+          },
+          "Max_Context_Length": 131000
         },
         {
           "name": "qwen/qwen3-32b",
@@ -51,7 +52,8 @@
             "tokens_per_minute": 6000,
             "tokens_per_hour": 100000,
             "tokens_per_day": 500000
-          }
+          },
+          "Max_Context_Length": 32000
         },
         {
           "name": "openai/gpt-oss-20b",
@@ -65,7 +67,8 @@
             "tokens_per_minute": 8000,
             "tokens_per_hour": 20000,
             "tokens_per_day": 200000
-          }
+          },
+          "Max_Context_Length": 8000
         },
         {
           "name": "openai/gpt-oss-120b",
@@ -79,7 +82,8 @@
             "tokens_per_minute": 8000,
             "tokens_per_hour": 20000,
             "tokens_per_day": 200000
-          }
+          },
+          "Max_Context_Length": 8000
         },
         {
           "name": "openai/gpt-oss-safeguard-20b",
@@ -93,7 +97,8 @@
             "tokens_per_minute": 8000,
             "tokens_per_hour": 20000,
             "tokens_per_day": 200000
-          }
+          },
+          "Max_Context_Length": 8000
         },
         {
           "name": "groq/compound",
@@ -107,7 +112,8 @@
             "tokens_per_minute": 70000,
             "tokens_per_hour": -1,
             "tokens_per_day": -1
-          }
+          },
+          "Max_Context_Length": 8000
         }
       ]
     },
@@ -127,7 +133,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 128000
         },
         {
           "name": "mistral-medium-latest",
@@ -141,7 +148,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 32000
         },
         {
           "name": "codestral-latest",
@@ -155,7 +163,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 262000
         },
         {
           "name": "mistral-large-2512",
@@ -169,7 +178,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 131000
         },
         {
           "name": "mistral-medium-2508",
@@ -183,7 +193,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 32000
         },
         {
           "name": "mistral-medium-2505",
@@ -197,7 +208,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 300
-          }
+          },
+          "Max_Context_Length": 32000
         },
         {
           "name": "mistral-medium",
@@ -211,7 +223,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 32000
         },
         {
           "name": "codestral-2508",
@@ -225,7 +238,8 @@
             "tokens_per_minute": 50000,
             "tokens_per_hour": 3000000,
             "tokens_per_day": 30000000
-          }
+          },
+          "Max_Context_Length": 262000
         }
       ]
     },
