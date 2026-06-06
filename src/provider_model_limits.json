@@ -269,7 +269,7 @@
       "url": "https://build.nvidia.com/explore/discover/models",
       "models": [
         {
-          "name": "abacusai/dracarys-llama-3.1-70b-instruct",
+          "name": "minimaxai/minimax-m2.7",
           "type": "text",
           "scale": "large",
           "limits": {
@@ -281,7 +281,7 @@
             "tokens_per_hour": -1,
             "tokens_per_day": -1
           },
-          "Max_Context_Length": 131072
+          "Max_Context_Length": 8000
         },
         {
           "name": "openai/gpt-oss-120b",
@@ -296,7 +296,7 @@
             "tokens_per_hour": -1,
             "tokens_per_day": -1
           },
-          "Max_Context_Length": 131072
+          "Max_Context_Length": 4000
         },
         {
           "name": "stepfun-ai/step-3.5-flash",
@@ -311,10 +311,10 @@
             "tokens_per_hour": -1,
             "tokens_per_day": -1
           },
-          "Max_Context_Length": 131072
+          "Max_Context_Length": 16000
         },
         {
-          "name": "mistralai/mistral-large-3-675b-instruct-2512",
+          "name": "moonshotai/kimi-k2.6",
           "type": "text",
           "scale": "medium",
           "limits": {
@@ -326,7 +326,7 @@
             "tokens_per_hour": -1,
             "tokens_per_day": -1
           },
-          "Max_Context_Length": 131072
+          "Max_Context_Length": 16000
         },
         {
           "name": "mistralai/mistral-nemotron",
@@ -341,7 +341,7 @@
             "tokens_per_hour": -1,
             "tokens_per_day": -1
           },
-          "Max_Context_Length": 131072
+          "Max_Context_Length": 4000
         }
       ]
     }
