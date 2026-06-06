@@ -145,12 +145,12 @@ def get_device_id(x_device_id: str = Header(default="")):
 
 
 @admin_router.get("/api/conversations")
-async def list_conversations(request: Request, device_id: str = Header(default="")):
+async def list_conversations(request: Request, x_device_id: str = Header(default="")):
     try:
         store = get_conversation_store(request)
-        if not device_id:
+        if not x_device_id:
             return JSONResponse(content=[])
-        convs = store.list_conversations(device_id)
+        convs = store.list_conversations(x_device_id)
         return JSONResponse(content=convs)
     except HTTPException:
         raise
@@ -160,14 +160,14 @@ async def list_conversations(request: Request, device_id: str = Header(default="
 
 
 @admin_router.post("/api/conversations")
-async def create_conversation(request: Request, device_id: str = Header(default="")):
+async def create_conversation(request: Request, x_device_id: str = Header(default="")):
     try:
         store = get_conversation_store(request)
-        if not device_id:
+        if not x_device_id:
             raise HTTPException(status_code=400, detail="X-Device-ID header is required")
         body = await request.json() if request.headers.get("content-type") == "application/json" else {}
         model = body.get("model", "meta-model")
-        result = store.create_conversation(device_id, model=model)
+        result = store.create_conversation(x_device_id, model=model)
         return JSONResponse(content=result, status_code=201)
     except HTTPException:
         raise
@@ -177,12 +177,12 @@ async def create_conversation(request: Request, device_id: str = Header(default=
 
 
 @admin_router.get("/api/conversations/{conv_id}")
-async def get_conversation(request: Request, conv_id: str, device_id: str = Header(default="")):
+async def get_conversation(request: Request, conv_id: str, x_device_id: str = Header(default="")):
     try:
         store = get_conversation_store(request)
-        if not device_id:
+        if not x_device_id:
             raise HTTPException(status_code=400, detail="X-Device-ID header is required")
-        conv = store.get_conversation(device_id, conv_id)
+        conv = store.get_conversation(x_device_id, conv_id)
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
         return JSONResponse(content=conv)
@@ -194,13 +194,13 @@ async def get_conversation(request: Request, conv_id: str, device_id: str = Head
 
 
 @admin_router.put("/api/conversations/{conv_id}")
-async def update_conversation(request: Request, conv_id: str, device_id: str = Header(default="")):
+async def update_conversation(request: Request, conv_id: str, x_device_id: str = Header(default="")):
     try:
         store = get_conversation_store(request)
-        if not device_id:
+        if not x_device_id:
             raise HTTPException(status_code=400, detail="X-Device-ID header is required")
         body = await request.json()
-        ok = store.update_conversation(device_id, conv_id, body)
+        ok = store.update_conversation(x_device_id, conv_id, body)
         if not ok:
             raise HTTPException(status_code=404, detail="Conversation not found")
         return JSONResponse(content={"ok": True})
@@ -212,12 +212,12 @@ async def update_conversation(request: Request, conv_id: str, device_id: str = H
 
 
 @admin_router.delete("/api/conversations/{conv_id}")
-async def delete_conversation(request: Request, conv_id: str, device_id: str = Header(default="")):
+async def delete_conversation(request: Request, conv_id: str, x_device_id: str = Header(default="")):
     try:
         store = get_conversation_store(request)
-        if not device_id:
+        if not x_device_id:
             raise HTTPException(status_code=400, detail="X-Device-ID header is required")
-        ok = store.delete_conversation(device_id, conv_id)
+        ok = store.delete_conversation(x_device_id, conv_id)
         if not ok:
             raise HTTPException(status_code=404, detail="Conversation not found")
         return JSONResponse(content={"ok": True})
@@ -229,14 +229,14 @@ async def delete_conversation(request: Request, conv_id: str, device_id: str = H
 
 
 @admin_router.post("/api/conversations/import")
-async def import_conversations(request: Request, device_id: str = Header(default="")):
+async def import_conversations(request: Request, x_device_id: str = Header(default="")):
     try:
         store = get_conversation_store(request)
-        if not device_id:
+        if not x_device_id:
             raise HTTPException(status_code=400, detail="X-Device-ID header is required")
         body = await request.json()
         conversations = body.get("conversations", [])
-        result = store.import_conversations(device_id, conversations)
+        result = store.import_conversations(x_device_id, conversations)
         return JSONResponse(content=result)
     except HTTPException:
         raise
