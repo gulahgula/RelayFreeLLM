@@ -156,5 +156,47 @@ class TestRelayFreeLLMCore(unittest.IsolatedAsyncioTestCase):
             await dispatcher.call_provider_api("Unknown", "model", "usr", "sys")
 
 
+    async def test_session_affinity(self):
+        self.mock_selector.select.return_value = ("Gemini", "gemini-2.0-flash", 0.0)
+        self.mock_gemini.call_model_api.return_value = "Gemini Response"
+
+        dispatcher = ModelDispatcher(self.mock_registry, self.mock_selector, self.mock_usage_tracker)
+
+        # First request — populates affinity map
+        request1 = ChatCompletionRequest(
+            messages=[ChatMessage(role="user", content="Hello")]
+        )
+        response1 = await dispatcher.chat(request1, session_id="test-session-1")
+        self.assertEqual(response1.choices[0].message.content, "Gemini Response")
+
+        # First call: no preferred_provider (no prior affinity)
+        first_call_kwargs = self.mock_selector.select.call_args.kwargs
+        self.assertIsNone(first_call_kwargs.get("preferred_provider"))
+
+        # Verify affinity map was populated
+        async with dispatcher.affinity_lock:
+            self.assertIn("test-session-1", dispatcher.session_affinity_map)
+            self.assertEqual(
+                dispatcher.session_affinity_map["test-session-1"]["provider"],
+                "Gemini",
+            )
+
+        # Second request with same session — should use affinity
+        self.mock_selector.select.reset_mock()
+        self.mock_gemini.call_model_api.reset_mock()
+        self.mock_selector.select.return_value = ("Gemini", "gemini-2.0-flash", 0.0)
+        self.mock_gemini.call_model_api.return_value = "Gemini Response"
+
+        request2 = ChatCompletionRequest(
+            messages=[ChatMessage(role="user", content="Hello again")]
+        )
+        response2 = await dispatcher.chat(request2, session_id="test-session-1")
+        self.assertEqual(response2.choices[0].message.content, "Gemini Response")
+
+        # Second call: preferred_provider should be set from affinity
+        second_call_kwargs = self.mock_selector.select.call_args.kwargs
+        self.assertEqual(second_call_kwargs.get("preferred_provider"), "Gemini")
+
+
 if __name__ == "__main__":
     unittest.main()

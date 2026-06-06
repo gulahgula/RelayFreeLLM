@@ -182,19 +182,21 @@ class ModelDispatcher:
                 for sid in expired:
                     del self.session_affinity_map[sid]
 
-            # Safety net: limit map size to prevent unbounded growth
-            max_sessions = settings.SESSION_MAX_SESSIONS
-            if len(self.session_affinity_map) > max_sessions:
-                sorted_sessions = sorted(self.session_affinity_map.items(), key=lambda x: x[1]["last_active"])
-                sessions_to_remove = sorted_sessions[:len(self.session_affinity_map) - max_sessions + 100]
-                for sid, _ in sessions_to_remove:
-                    del self.session_affinity_map[sid]
-                self.logger.info(f"Pruned {len(sessions_to_remove)} sessions due to size limit")
+                # Safety net: limit map size to prevent unbounded growth
+                max_sessions = settings.SESSION_MAX_SESSIONS
+                if len(self.session_affinity_map) > max_sessions:
+                    sorted_sessions = sorted(self.session_affinity_map.items(), key=lambda x: x[1]["last_active"])
+                    sessions_to_remove = sorted_sessions[:len(self.session_affinity_map) - max_sessions + 100]
+                    for sid, _ in sessions_to_remove:
+                        del self.session_affinity_map[sid]
+                    self.logger.info(f"Pruned {len(sessions_to_remove)} sessions due to size limit")
 
+                # READ affinity (unconditionally, after pruning)
                 if session_id in self.session_affinity_map:
                     data = self.session_affinity_map[session_id]
                     preferred_provider = data["provider"]
                     affinity_model_name = data["model"]
+                    self.session_affinity_map[session_id]["last_active"] = now
 
         while attempt < max_retries:
             try:
