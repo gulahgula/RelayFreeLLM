@@ -34,7 +34,7 @@ No code changes. No retry logic. No 429 errors breaking your app.
 | **Automatic Failover** | Provider down? One model hit limits? We try the next one automatically. Zero downtime. |
 | **Session Affinity** | Pin conversations to a provider via `X-Session-ID` for context caching benefits. |
 | **4-Mode Context Management** | Static, Dynamic, Reservoir, Adaptive — with extractive summarization to preserve long conversations. |
-| **Consistent Output Style** | Universal style guidance + response normalizers eliminate provider-specific quirks. |
+| **Consistent Output Style** | Universal style guidance + response normalizers eliminate provider-specific quirks. Opt out per-request via `X-Use-ServerSide-System-Prompt: false`. |
 | **Intent-Based Routing** | `model_type=coding`, `model_scale=large`, `model_name=deepseek` — tell us what you need, not which API to call. |
 | **Real-time Streaming** | Full SSE streaming from every backend provider. |
 | **Chat UI** | Built-in web chat interface at [`/chat`](http://localhost:8000/chat) — streaming, conversation history, dark/light mode, Browser or Server storage. |
@@ -218,12 +218,39 @@ Despite switching between providers, every response is homogenized:
 - **Style directive injection** — universal guide added to every system prompt
 - **Response normalization** — strips "As an AI...", "Certainly!", fixes JSON, standardizes markdown
 
+The standard system prompt injection can be disabled per-request by sending the header `X-Use-ServerSide-System-Prompt: false`. See [Agent Framework Support](#agent-framework-support) below.
+
 ---
 
 ## Advanced Features
 
 ### Session Affinity
 Pass `X-Session-ID: user-123` and the gateway pins that user to a single provider. If that provider fails, the session automatically migrates.
+
+### Agent Framework Support
+Agent frameworks (LangChain, AutoGen, CrewAI) manage their own system prompt and conversation history. To prevent the gateway from injecting its standard prompt or reconstructing the message array, send the header:
+
+```
+X-Use-ServerSide-System-Prompt: false
+```
+
+Behaviour when `false` (either per-request header or server `settings.json` default):
+
+- The client's `messages` array is forwarded verbatim, preserving message order and roles (including `tool` and `function` roles in the future).
+- No server-side `STANDARD_SYSTEM_PROMPT` or style directive is injected.
+- The client's own system message (if any) is used without augmentation.
+- If the client sent no system message, no system message is sent to the provider.
+
+Set the server-wide default in `settings.json`:
+```json
+{
+  "routing": {
+    "use_server_side_system_prompt": false
+  }
+}
+```
+
+> **Note:** For full client-order fidelity, pair this with `CONTEXT_MANAGEMENT_MODE=static` in `settings.json` — modes like `reservoir` and `adaptive` may still reorder or summarise context when the conversation exceeds the token budget.
 
 ### Multi-Turn Context Management
 | Mode | Behavior |
@@ -243,7 +270,7 @@ The Reservoir mode uses a **TF-scoring algorithm** to identify the most informat
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `model` | string | `"meta-model"` for auto-routing, or `"provider/model"` for direct |
-| `messages` | array | Standard OpenAI message format |
+| `messages` | array | Standard OpenAI message format. `content` accepts `str` or `list[{type, text, ...}]` for multi-modal messages. |
 | `stream` | bool | Enable SSE streaming |
 | `model_type` | string | Filter: `text`, `coding`, `ocr` |
 | `model_scale` | string | Filter: `large`, `medium`, `small` |
@@ -253,6 +280,10 @@ The Reservoir mode uses a **TF-scoring algorithm** to identify the most informat
 ```bash
 curl http://localhost:8000/v1/models?type=coding&scale=large
 ```
+
+> **Multi-modal content:** The `content` field in each message accepts either a plain string or a list of content parts (e.g. `[{"type": "text", "text": "..."}, {"type": "image_url", "url": "..."}]`), matching the OpenAI Chat Completions spec. Text parts are flattened before being sent to providers that don't support structured content.
+>
+> **Agent frameworks:** To send the client's `messages` array verbatim without server-side system prompt injection, set `X-Use-ServerSide-System-Prompt: false`. See [Agent Framework Support](#agent-framework-support).
 
 ### `GET /v1/usage`
 ```bash
