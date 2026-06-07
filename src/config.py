@@ -42,6 +42,7 @@ class Settings:
         self.PORT = 8000
         self.LOG_LEVEL = "INFO"
         self.SESSION_ID_HEADER = "X-Session-ID"
+        self.USE_SERVER_SIDE_SYSTEM_PROMPT_HEADER = "X-Use-ServerSide-System-Prompt"
         self.SESSION_AFFINITY_ENABLED = True
         self.SESSION_TTL_HOURS = 24
         self.SESSION_MAX_SESSIONS = 1000
@@ -88,6 +89,15 @@ class Settings:
         # Context Management
         self.CONTEXT_MANAGEMENT_MODE = "static"
         self.CONTEXT_STATIC_RECENT_KEEP = 10
+        # When True (default), the server always injects its
+        # STANDARD_SYSTEM_PROMPT + style_directive and ignores the client's
+        # system message. The message array is reconstructed as
+        # [system, ...context, last_user].
+        # When False, the client's messages array is forwarded verbatim,
+        # the client's own system message (if any) is respected, and no
+        # server-side prompts are added. Used by agent frameworks
+        # (LangChain, AutoGen, CrewAI) that need full control.
+        self.USE_SERVER_SIDE_SYSTEM_PROMPT = True
         self.CONTEXT_DYNAMIC_UTILIZATION_TARGET = 0.8
         self.CONTEXT_DYNAMIC_MIN_UTILIZATION = 0.3
         self.CONTEXT_DYNAMIC_MAX_BOOST = 1.5
@@ -126,6 +136,7 @@ class Settings:
                 "context.reservoir_summary_budget": "CONTEXT_RESERVOIR_SUMMARY_BUDGET",
                 "summarization.max_tokens": "SUMMARIZATION_MAX_TOKENS",
                 "routing.global_provider_lock": "GLOBAL_PROVIDER_LOCK",
+                "routing.use_server_side_system_prompt": "USE_SERVER_SIDE_SYSTEM_PROMPT",
                 "http.timeout_seconds": "REQUEST_TIMEOUT_SECONDS",
             }
 

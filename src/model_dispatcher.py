@@ -60,6 +60,7 @@ class ModelDispatcher:
         request: ChatCompletionRequest,
         conversation_history: Optional[List[ChatMessage]] = None,
         session_id: str = "default",
+        use_server_side_system_prompt: Optional[bool] = None,
     ) -> ChatCompletionResponse | object:
         """
         The meta model's main entry point.
@@ -73,6 +74,12 @@ class ModelDispatcher:
             request: The chat completion request
             conversation_history: Optional list of previous messages for context
             session_id: Client session identifier (from X-Session-ID header)
+            use_server_side_system_prompt: Override for
+                USE_SERVER_SIDE_SYSTEM_PROMPT. When True the server always
+                injects its standard prompt + style_directive and ignores
+                the client's system message. When False the client's
+                messages array is forwarded verbatim. Default (None)
+                falls back to the server-wide setting.
         """
         user_prompt = request.get_user_prompt()
         sys_prompt = request.get_system_prompt()
@@ -90,6 +97,14 @@ class ModelDispatcher:
             )
 
         self.logger.info(f"chat() — user_prompt: {user_prompt[:80]}...")
+
+        # Resolve the flag: per-request override (if set) or server default.
+        effective_use_ss = (
+            use_server_side_system_prompt
+            if use_server_side_system_prompt is not None
+            else settings.USE_SERVER_SIDE_SYSTEM_PROMPT
+        )
+        client_messages = request.messages if not effective_use_ss else None
 
         # Case 1: Specific Routing (provider/model format)
         if "/" in request.model and request.model != "meta-model":
@@ -136,6 +151,7 @@ class ModelDispatcher:
                     stream=stream,
                     conversation_history=conversation_history,
                     session_id=session_id,
+                    client_messages=client_messages,
                 )
                 latency_ms = (time.time() - start_time) * 1000
 
@@ -241,6 +257,7 @@ class ModelDispatcher:
                     stream=stream,
                     conversation_history=conversation_history,
                     session_id=session_id,
+                    client_messages=client_messages,
                 )
                 latency_ms = (time.time() - start_time) * 1000
 
@@ -342,6 +359,7 @@ class ModelDispatcher:
         stream: bool = False,
         conversation_history: Optional[List[ChatMessage]] = None,
         session_id: str = "default",
+        client_messages: Optional[List[ChatMessage]] = None,
     ) -> str | object:
         """
         Call a specific provider's model API.
@@ -355,8 +373,18 @@ class ModelDispatcher:
             max_tokens: Max tokens to generate
             response_format: Response format (e.g., JSON)
             stream: Whether to stream the response
-            conversation_history: Optional list of previous messages for context
+            conversation_history: Optional list of previous messages for
+                context (used by the legacy reconstruction path)
             session_id: Client session identifier for context tracking
+            client_messages: Optional full client message array. When
+                provided (and USE_SERVER_SIDE_SYSTEM_PROMPT is False
+                — per server default or per-request header), the
+                dispatcher forwards the client's `messages` array
+                directly to the provider in client order, skipping
+                server-side system prompt injection and array
+                reconstruction. Used by agent frameworks (LangChain,
+                AutoGen, etc.) that manage their own conversation
+                state.
         """
         self.logger.info(f"Calling {provider_name} model: {model_name} (stream={stream})")
 
@@ -369,48 +397,76 @@ class ModelDispatcher:
         style_directive = get_style_directive(response_format_dict)
         base_sys_prompt = f"{system_prompt}\n\n{settings.STANDARD_SYSTEM_PROMPT}\n\n{style_directive}"
 
-        # Context Management: Select what portion of conversation history to send
+        # Verbatim path: forward the client's array as-is when
+        # USE_SERVER_SIDE_SYSTEM_PROMPT is False (either from server
+        # default or per-request header override). No server-side
+        # system prompts are injected. The client's own system message
+        # (if any) and array order are respected. Only a hard token-cap
+        # trim is applied via the context manager.
         context_messages = []
-        if conversation_history and len(conversation_history) > 0:
-            # Calculate target context size based on provider/model limits
+        if client_messages is not None:
             target_context_tokens = self._calculate_target_context_tokens(
                 provider_name, model_name, max_tokens
             )
-
-            # Use context manager to select appropriate portion of history
             selected_history = self.context_manager.select_context_for_request(
-                conversation_history,
+                client_messages,
                 session_id=session_id,
-                target_context_tokens=target_context_tokens
+                target_context_tokens=target_context_tokens,
             )
-
-            # Convert to message format for API, filtering out empty messages.
-            # Use get_text() to flatten structured content (e.g. content-part
-            # lists with image_url) down to plain text, matching the provider
-            # API expectations.
-            context_messages = [
+            # Flatten structured content via get_text() and drop empty.
+            messages = [
                 {"role": msg.role, "content": msg.get_text()}
                 for msg in selected_history
                 if msg.get_text().strip()
             ]
-
             self.logger.debug(
-                f"Context management: selected {len(selected_history)} of "
-                f"{len(conversation_history)} messages for context"
+                f"Verbatim path: forwarded {len(messages)} "
+                f"of {len(client_messages)} client messages, "
+                f"skipping server-side system prompt injection"
             )
+        else:
+            # Legacy reconstruction path: build [system, ...context, user]
+            # from the extracted components.
+            if conversation_history and len(conversation_history) > 0:
+                # Calculate target context size based on provider/model limits
+                target_context_tokens = self._calculate_target_context_tokens(
+                    provider_name, model_name, max_tokens
+                )
 
-        # Build complete message list: [context] + [current user message]
-        messages = []
+                # Use context manager to select appropriate portion of history
+                selected_history = self.context_manager.select_context_for_request(
+                    conversation_history,
+                    session_id=session_id,
+                    target_context_tokens=target_context_tokens
+                )
 
-        # Add system prompt if present
-        if system_prompt:
-            messages.append({"role": "system", "content": base_sys_prompt})
+                # Convert to message format for API, filtering out empty
+                # messages. Use get_text() to flatten structured content
+                # (e.g. content-part lists with image_url) down to plain
+                # text, matching the provider API expectations.
+                context_messages = [
+                    {"role": msg.role, "content": msg.get_text()}
+                    for msg in selected_history
+                    if msg.get_text().strip()
+                ]
 
-        # Add context messages
-        messages.extend(context_messages)
+                self.logger.debug(
+                    f"Context management: selected {len(selected_history)} of "
+                    f"{len(conversation_history)} messages for context"
+                )
 
-        # Add current user message
-        messages.append({"role": "user", "content": user_prompt})
+            # Build complete message list: [context] + [current user message]
+            messages = []
+
+            # Add system prompt if present
+            if system_prompt:
+                messages.append({"role": "system", "content": base_sys_prompt})
+
+            # Add context messages
+            messages.extend(context_messages)
+
+            # Add current user message
+            messages.append({"role": "user", "content": user_prompt})
 
         # Global Provider Lock: Optional serialization per provider
         if settings.GLOBAL_PROVIDER_LOCK:
