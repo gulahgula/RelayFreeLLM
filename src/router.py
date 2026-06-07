@@ -47,6 +47,18 @@ def get_usage_tracker(request: Request):
     return request.app.state.usage_tracker
 
 
+def _parse_bool_header(value: str | None) -> bool | None:
+    """Parse a boolean HTTP header value. Returns None if absent or invalid."""
+    if value is None:
+        return None
+    stripped = value.strip().lower()
+    if stripped == "true":
+        return True
+    if stripped == "false":
+        return False
+    return None
+
+
 # ── Health ──────────────────────────────────────────────────────────
 
 
@@ -97,6 +109,11 @@ async def chat_completions(request: Request) -> JSONResponse | StreamingResponse
         # Read session ID from header (used by context manager for per-session history)
         session_id = request.headers.get(settings.SESSION_ID_HEADER, "default")
 
+        # Read per-request override for USE_SERVER_SIDE_SYSTEM_PROMPT.
+        # Absent/invalid header → None → falls back to server default.
+        raw = request.headers.get(settings.USE_SERVER_SIDE_SYSTEM_PROMPT_HEADER)
+        use_server_side_system_prompt = _parse_bool_header(raw)
+
         # Extract conversation history (all messages except the last user message).
         # Done here — before the stream/non-stream split — so both paths share it.
         conversation_history = []
@@ -108,6 +125,7 @@ async def chat_completions(request: Request) -> JSONResponse | StreamingResponse
                 chat_request,
                 conversation_history=conversation_history,
                 session_id=session_id,
+                use_server_side_system_prompt=use_server_side_system_prompt,
             )
             return JSONResponse(content=result.model_dump(), status_code=200)
 
@@ -123,6 +141,7 @@ async def chat_completions(request: Request) -> JSONResponse | StreamingResponse
                     chat_request,
                     conversation_history=conversation_history,
                     session_id=session_id,
+                    use_server_side_system_prompt=use_server_side_system_prompt,
                 )
 
                 async for chunk in generator:

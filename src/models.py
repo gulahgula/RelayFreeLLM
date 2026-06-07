@@ -7,7 +7,7 @@ can be used as a drop-in replacement for OpenAI's /v1/chat/completions.
 
 import time
 import uuid
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -16,10 +16,35 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
-    """A single message in a chat conversation."""
+    """A single message in a chat conversation.
+
+    `content` follows the OpenAI Chat Completions spec: either a plain
+    string, or a list of structured content parts (e.g. text + image_url).
+    Use `get_text()` to flatten to a plain string for downstream consumers
+    that don't yet handle structured content.
+    """
 
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: Union[str, list[Any]]
+
+    def get_text(self) -> str:
+        """Extract plain text from content.
+
+        Returns the string unchanged when `content` is a string. When
+        `content` is a list of content parts, joins the text of every part
+        whose `type` is `"text"`. Non-text parts (e.g. `image_url`) are
+        skipped. Returns an empty string if no text is extractable.
+        """
+        if isinstance(self.content, str):
+            return self.content
+        if not isinstance(self.content, list):
+            return ""
+        parts = [
+            p.get("text", "")
+            for p in self.content
+            if isinstance(p, dict) and p.get("type") == "text"
+        ]
+        return " ".join(parts)
 
 
 class ResponseFormat(BaseModel):
@@ -55,14 +80,14 @@ class ChatCompletionRequest(BaseModel):
         """Extract the system prompt from messages, if any."""
         for msg in self.messages:
             if msg.role == "system":
-                return msg.content
+                return msg.get_text()
         return ""
 
     def get_user_prompt(self) -> str:
         """Extract the last user message."""
         for msg in reversed(self.messages):
             if msg.role == "user":
-                return msg.content
+                return msg.get_text()
         return ""
 
 

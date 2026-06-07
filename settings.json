@@ -48,7 +48,10 @@
 
   "routing": {
     "global_provider_lock": true,
-    "__comment": "Ensures only one request per provider at a time, eliminates 429 errors"
+    "__comment": "Ensures only one request per provider at a time, eliminates 429 errors",
+
+    "__use_server_side_system_prompt_comment": "When true (default), the server always injects its STANDARD_SYSTEM_PROMPT + style_directive and ignores the client's system message. When false, the client's messages array is forwarded verbatim, the client's own system message (if any) is respected, and no server-side prompts are added. Set to false for agent frameworks (LangChain, AutoGen, CrewAI) that need full control over their system prompt and message ordering. Can be overridden per-request via the X-Use-ServerSide-System-Prompt header.",
+    "use_server_side_system_prompt": true
   },
 
   "http": {
