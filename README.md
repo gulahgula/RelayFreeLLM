@@ -52,7 +52,7 @@ No code changes. No retry logic. No 429 errors breaking your app.
 | **Self-hosters** | Combine Ollama privacy with cloud capacity |
 | **Researchers** | Batch queries across providers for higher throughput |
 
-**Community:** 90+ GitHub stars, 10+ forks, 8 providers supported. Active development — 40+ commits in 8 weeks.
+**Community:** 120+ GitHub stars, 10+ forks, 20+ models from 5 providers included. Active development — 70+ commits in 12 weeks.
 
 ---
 
@@ -101,10 +101,10 @@ MODEL AVAILABILITY SUMMARY
 ✅ PASS | Mistral         | mistral-medium                                | Success
 ✅ PASS | Mistral         | codestral-2508                                | Success
 ✅ PASS | Gemini          | gemini-2.5-flash                              | Success
-✅ PASS | Nvidia          | abacusai/dracarys-llama-3.1-70b-instruct      | Success
+✅ PASS | Nvidia          | minimaxai/minimax-m2.7                        | Success
 ✅ PASS | Nvidia          | openai/gpt-oss-120b                           | Success
 ✅ PASS | Nvidia          | stepfun-ai/step-3.5-flash                     | Success
-✅ PASS | Nvidia          | mistralai/mistral-large-3-675b-instruct-2512  | Success
+✅ PASS | Nvidia          | moonshotai/kimi-k2.6                          | Success
 ✅ PASS | Nvidia          | mistralai/mistral-nemotron                    | Success
 ======================================================================
 TOTAL: 21/21 models available.
