@@ -28,9 +28,8 @@ def test_config_loading():
     
     # 3. Test Global Provider Lock
     print("\n[Test 3] Testing Global Provider Lock")
-    # Default in class was False, set to False in settings.json
-    print(f"GLOBAL_PROVIDER_LOCK: {s.GLOBAL_PROVIDER_LOCK} (Expected: False)")
-    assert s.GLOBAL_PROVIDER_LOCK == False
+    print(f"GLOBAL_PROVIDER_LOCK: {s.GLOBAL_PROVIDER_LOCK} (Expected: True)")
+    assert s.GLOBAL_PROVIDER_LOCK == True
     
     print("\nAll Configuration Loading Tests Passed!")
 

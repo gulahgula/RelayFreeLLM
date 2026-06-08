@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("ModelChecker")
 
 
-async def test_model(registry, provider_name, model_name):
+async def _test_model(registry, provider_name, model_name):
     """Test a single model's availability."""
     try:
         client = registry.get_client(provider_name)
@@ -91,7 +91,7 @@ async def main():
 
         for model_data in provider_data["models"]:
             model_name = model_data["name"]
-            tasks.append(test_model(registry, provider_name, model_name))
+            tasks.append(_test_model(registry, provider_name, model_name))
 
     if not tasks:
         logger.error("No models found or no API keys configured.")

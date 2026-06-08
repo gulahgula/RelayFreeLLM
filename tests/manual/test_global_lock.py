@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 import time
 import os
 import sys
@@ -25,6 +26,7 @@ class MockRegistry:
     def list_providers(self):
         return ["Mock"]
 
+@pytest.mark.asyncio
 async def test_global_lock():
     print(f"Testing Global Provider Lock (GLOBAL_PROVIDER_LOCK={settings.GLOBAL_PROVIDER_LOCK})...")
     
