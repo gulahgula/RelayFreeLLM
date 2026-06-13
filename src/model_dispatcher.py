@@ -31,7 +31,7 @@ from .response_normalizer import ResponseNormalizer
 from .style_config import get_style_directive
 from .context_manager import ContextManager
 from .config import settings
-from typing import List, Optional
+from typing import List, Optional, Union
 import asyncio
 
 
@@ -82,6 +82,13 @@ class ModelDispatcher:
                 falls back to the server-wide setting.
         """
         user_prompt = request.get_user_prompt()
+        # Preserve the original content of the last user message
+        # (may be a list with text + image_url parts for multimodal).
+        last_user_msg = next(
+            (msg for msg in reversed(request.messages) if msg.role == "user"),
+            None,
+        )
+        user_content = last_user_msg.content if last_user_msg else user_prompt
         sys_prompt = request.get_system_prompt()
         temperature = request.temperature
         max_tokens = request.max_tokens
@@ -143,7 +150,7 @@ class ModelDispatcher:
                 model_resp = await self.call_provider_api(
                     provider_name=provider_name,
                     model_name=model_name,
-                    user_prompt=user_prompt,
+                    user_prompt=user_content,
                     system_prompt=sys_prompt,
                     temperature=temperature,
                     max_tokens=max_tokens,
@@ -250,7 +257,7 @@ class ModelDispatcher:
                 model_resp = await self.call_provider_api(
                     provider_name=provider_name,
                     model_name=model_name,
-                    user_prompt=user_prompt,
+                    user_prompt=user_content,
                     system_prompt=sys_prompt,
                     temperature=temperature,
                     max_tokens=max_tokens,
@@ -351,7 +358,7 @@ class ModelDispatcher:
         self,
         provider_name: str,
         model_name: str,
-        user_prompt: str,
+        user_prompt: Union[str, list],
         system_prompt: str,
         temperature: float = None,
         max_tokens: int = None,
@@ -413,9 +420,10 @@ class ModelDispatcher:
                 session_id=session_id,
                 target_context_tokens=target_context_tokens,
             )
-            # Flatten structured content via get_text() and drop empty.
+            # Preserve original content (string or list w/ image_url parts)
+            # for multimodal support; use get_text() only for the empty check.
             messages = [
-                {"role": msg.role, "content": msg.get_text()}
+                {"role": msg.role, "content": msg.content}
                 for msg in selected_history
                 if msg.get_text().strip()
             ]
@@ -440,12 +448,10 @@ class ModelDispatcher:
                     target_context_tokens=target_context_tokens
                 )
 
-                # Convert to message format for API, filtering out empty
-                # messages. Use get_text() to flatten structured content
-                # (e.g. content-part lists with image_url) down to plain
-                # text, matching the provider API expectations.
+                # Preserve original content for multimodal support; use
+                # get_text() only for the empty check.
                 context_messages = [
-                    {"role": msg.role, "content": msg.get_text()}
+                    {"role": msg.role, "content": msg.content}
                     for msg in selected_history
                     if msg.get_text().strip()
                 ]
@@ -467,6 +473,17 @@ class ModelDispatcher:
 
             # Add current user message
             messages.append({"role": "user", "content": user_prompt})
+
+        # Strip multimodal content parts for providers that don't support them
+        if not api_client.supports_multimodal:
+            normalized = []
+            for msg in messages:
+                content = msg["content"]
+                if isinstance(content, list):
+                    parts = [p["text"] for p in content if isinstance(p, dict) and p.get("type") == "text"]
+                    content = " ".join(parts)
+                normalized.append({"role": msg["role"], "content": content})
+            messages = normalized
 
         # Global Provider Lock: Optional serialization per provider
         if settings.GLOBAL_PROVIDER_LOCK:
@@ -490,8 +507,17 @@ class ModelDispatcher:
 
         # Update usage tracking for context (for dynamic mode)
         if context_messages:
+            def _extract_text(content):
+                if isinstance(content, str):
+                    return content
+                if isinstance(content, list):
+                    return " ".join(
+                        p["text"] for p in content
+                        if isinstance(p, dict) and p.get("type") == "text"
+                    )
+                return str(content)
             context_tokens = self.selector.estimate_tokens(
-                " ".join(m["content"] for m in context_messages)
+                " ".join(_extract_text(m["content"]) for m in context_messages)
             )
             self.context_manager.update_usage(session_id, context_tokens)
 

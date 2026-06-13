@@ -63,10 +63,13 @@
 
   <div id="input-area">
     <div id="input-wrap">
+      <button id="btn-attach" class="icon-btn" title="Attach image">&#128247;</button>
       <textarea id="input" rows="1" placeholder="Type a message..." enterkeyhint="send"></textarea>
       <button id="btn-send" class="btn btn-primary" title="Send">Send</button>
       <button id="btn-stop" class="btn btn-danger hidden" title="Stop streaming">Stop</button>
+      <input type="file" id="file-input" accept="image/*" multiple hidden>
     </div>
+    <div id="attach-preview" class="hidden"></div>
     <div id="input-footer">
       <span>Enter to send &middot; Shift+Enter for new line</span>
     </div>

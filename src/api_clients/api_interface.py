@@ -14,6 +14,7 @@ from ..config import settings
 class ApiInterface(ABC):
 
     PROVIDER_NAME: str = ""
+    supports_multimodal: bool = False
 
     @abstractmethod
     async def call_model_api(

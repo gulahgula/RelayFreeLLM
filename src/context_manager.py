@@ -167,7 +167,7 @@ class ContextManager:
         Code-heavy conversations get reservoir mode so older code context is
         summarized but not lost. General chat uses static (last N messages).
         """
-        combined_text = " ".join(msg.content.lower() for msg in full_history)
+        combined_text = " ".join(msg.get_text().lower() for msg in full_history)
         code_indicators = [
             "def ", "class ", "import ", "function", "var ", "const ", "let ",
             "=>", "```", "();" 
@@ -222,7 +222,7 @@ class ContextManager:
         all_sentences: List[dict] = []
         for msg_idx, msg in enumerate(messages):
             role_prefix = "User" if msg.role == "user" else "Assistant"
-            raw_sentences = re.split(r"(?<=[.!?])\s+", msg.content.strip())
+            raw_sentences = re.split(r"(?<=[.!?])\s+", msg.get_text().strip())
             for sent_idx, sent in enumerate(raw_sentences):
                 sent = sent.strip()
                 if sent:

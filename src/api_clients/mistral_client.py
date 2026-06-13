@@ -11,6 +11,7 @@ from .api_interface import ApiInterface
 
 class MistralClient(ApiInterface):
     PROVIDER_NAME = "Mistral"
+    supports_multimodal = True
 
     def __init__(self):
         api_key = settings.get_api_key("MISTRAL_APIKEY")

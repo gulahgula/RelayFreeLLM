@@ -221,8 +221,8 @@ class TestFalseVerbatimPath(_DispatcherTestBase):
         self.assertEqual(msgs[0]["role"], "user")
         self.assertEqual(msgs[0]["content"], "just this")
 
-    async def test_structured_content_flattened(self):
-        """List content flattened via get_text()."""
+    async def test_structured_content_preserved(self):
+        """List content preserved verbatim (not flattened) for multimodal."""
         await self.dispatcher.call_provider_api(
             "Gemini", "gemini-2.0-flash",
             user_prompt="ignored",
@@ -237,7 +237,11 @@ class TestFalseVerbatimPath(_DispatcherTestBase):
         )
         msgs = self._last_messages()
         self.assertEqual(len(msgs), 1)
-        self.assertEqual(msgs[0]["content"], "describe this image")
+        self.assertEqual(msgs[0]["role"], "user")
+        self.assertIsInstance(msgs[0]["content"], list)
+        self.assertEqual(len(msgs[0]["content"]), 3)
+        self.assertEqual(msgs[0]["content"][0]["type"], "text")
+        self.assertEqual(msgs[0]["content"][0]["text"], "describe this")
 
     async def test_empty_messages_dropped(self):
         """Empty/whitespace-only messages filtered out."""

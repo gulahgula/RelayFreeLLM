@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import re
 import traceback
 
 from google import genai
@@ -14,6 +16,7 @@ from .api_interface import ApiInterface
 class GeminiClient(ApiInterface):
 
     PROVIDER_NAME = "Gemini"
+    supports_multimodal = True
 
     def __init__(self):
         api_key = settings.get_api_key("GEMINI_APIKEY")
@@ -30,6 +33,32 @@ class GeminiClient(ApiInterface):
         except Exception as e:
             self.logger.error(f"Error listing Gemini models: {e}")
             return []
+
+    @staticmethod
+    def _content_to_gemini_parts(content: str | list) -> list:
+        """Convert a content field (string or OpenAI-format parts list)
+        to a list of Gemini Part objects."""
+        parts = []
+        if isinstance(content, str):
+            parts.append(types.Part.from_text(text=content))
+        elif isinstance(content, list):
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                ptype = part.get("type")
+                if ptype == "text":
+                    parts.append(types.Part.from_text(text=part.get("text", "")))
+                elif ptype == "image_url":
+                    url = part.get("image_url", {}).get("url", "")
+                    if url.startswith("data:image/"):
+                        match = re.match(r"data:image/(\w+);base64,(.+)", url)
+                        if match:
+                            mime = f"image/{match.group(1)}"
+                            data = base64.b64decode(match.group(2))
+                            parts.append(types.Part.from_bytes(data=data, mime_type=mime))
+                    elif url:
+                        parts.append(types.Part.from_uri(uri=url, mime_type="image/jpeg"))
+        return parts
 
     async def call_model_api(
         self,
@@ -48,15 +77,19 @@ class GeminiClient(ApiInterface):
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 if role == "system":
-                    sys_instruct += content + "\n"
+                    if isinstance(content, list):
+                        for part in content:
+                            if isinstance(part, dict) and part.get("type") == "text":
+                                sys_instruct += part.get("text", "") + "\n"
+                    else:
+                        sys_instruct += content + "\n"
                 else:
                     gemini_role = "model" if role == "assistant" else role
-                    gemini_contents.append(
-                        types.Content(
-                            role=gemini_role,
-                            parts=[types.Part.from_text(text=content)]
+                    parts = self._content_to_gemini_parts(content)
+                    if parts:
+                        gemini_contents.append(
+                            types.Content(role=gemini_role, parts=parts)
                         )
-                    )
                     
             config = types.GenerateContentConfig(
                 system_instruction=sys_instruct.strip() if sys_instruct else None,

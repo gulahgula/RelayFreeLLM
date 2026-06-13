@@ -240,8 +240,8 @@ class TestFalseVerbatimPath:
         assert len(msgs) == 1
         assert msgs[0]["content"] == "hello"
 
-    def test_structured_content_flattened_e2e(self, dispatcher_and_mocks):
-        """Content parts are flattened via get_text() before provider."""
+    def test_structured_content_preserved_e2e(self, dispatcher_and_mocks):
+        """Content parts are preserved verbatim (not flattened) for multimodal."""
         _, mock_gemini, _ = dispatcher_and_mocks
         with TestClient(app) as client:
             resp = client.post(
@@ -252,7 +252,11 @@ class TestFalseVerbatimPath:
         assert resp.status_code == 200
         msgs = mock_gemini.call_model_api.call_args.kwargs["messages"]
         assert len(msgs) == 1
-        assert msgs[0]["content"] == "describe   this"
+        assert msgs[0]["role"] == "user"
+        assert isinstance(msgs[0]["content"], list)
+        assert len(msgs[0]["content"]) == 3
+        assert msgs[0]["content"][0]["type"] == "text"
+        assert msgs[0]["content"][0]["text"] == "describe "
 
     def test_invalid_header_falls_back_to_default(self, dispatcher_and_mocks):
         """Invalid header value -> None -> falls back to server default (True)."""

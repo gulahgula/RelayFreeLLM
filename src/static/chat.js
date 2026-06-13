@@ -10,6 +10,7 @@ const state = {
   storageMode: localStorage.getItem('rflm-storage-mode') || 'browser',
   sidebarOpen: window.innerWidth > 700,
   sidebarSearch: '',
+  attachments: [],
 };
 
 /* ── DOM References ──────────────────────────────────────── */
@@ -21,7 +22,8 @@ function cacheElements() {
     'sidebar-list', 'sidebar-overlay', 'btn-sidebar', 'btn-sidebar-new',
     'sidebar-search',
     'storage-mode', 'migrate-modal', 'migrate-text',
-    'modal-migrate-cancel', 'modal-migrate-keep', 'modal-migrate-import'];
+    'modal-migrate-cancel', 'modal-migrate-keep', 'modal-migrate-import',
+    'btn-attach', 'file-input', 'attach-preview', 'input-area'];
   for (const id of ids) {
     els[id] = document.getElementById(id);
   }
@@ -331,7 +333,15 @@ async function copyConversation(id, e) {
     }
     const text = conv.messages.map(m => {
       const prefix = m.role === 'user' ? 'You' : 'Assistant';
-      return prefix + ':\n' + m.content;
+      let content;
+      if (typeof m.content === 'string') {
+        content = m.content;
+      } else if (Array.isArray(m.content)) {
+        content = m.content.map(p => p.type === 'text' ? p.text : '[Image]').join('\n');
+      } else {
+        content = String(m.content);
+      }
+      return prefix + ':\n' + content;
     }).join('\n\n');
     await navigator.clipboard.writeText(text);
     showToast('Conversation copied');
@@ -345,6 +355,8 @@ async function createNewConversation() {
     const result = await getStore().create({ model: state.model });
     state.currentId = result.id;
     state.messages = [];
+    state.attachments = [];
+    renderAttachPreview();
     await loadConversations();
     renderMessages();
     els.input.focus();
@@ -380,9 +392,17 @@ async function saveCurrentConversation() {
 function deriveTitle(messages) {
   const first = messages.find(m => m.role === 'user');
   if (!first) return '';
-  let title = first.content.replace(/[\n\r]+/g, ' ').trim();
-  if (title.length > 45) title = title.slice(0, 42) + '...';
-  return title;
+  let text;
+  if (typeof first.content === 'string') {
+    text = first.content;
+  } else if (Array.isArray(first.content)) {
+    const textPart = first.content.find(p => p.type === 'text');
+    text = textPart?.text || '';
+  }
+  text = (text || '').replace(/[\n\r]+/g, ' ').trim();
+  if (!text) text = 'Image message';
+  if (text.length > 45) text = text.slice(0, 42) + '...';
+  return text;
 }
 
 /* ── Edit / Delete Messages ────────────────────────────── */
@@ -407,6 +427,15 @@ function regenerateResponse() {
   performStreamingSend();
 }
 
+function getMessageTextContent(msg) {
+  if (typeof msg.content === 'string') return msg.content;
+  if (Array.isArray(msg.content)) {
+    const textPart = msg.content.find(p => p.type === 'text');
+    return textPart?.text || '';
+  }
+  return '';
+}
+
 function editMessage(msg) {
   if (msg.role !== 'user') return;
   const idx = state.messages.indexOf(msg);
@@ -421,10 +450,12 @@ function editMessage(msg) {
   if (!bubbleEl) return;
 
   // Replace bubble content with a textarea + action buttons
+  const textContent = getMessageTextContent(msg);
+
   const textarea = document.createElement('textarea');
   textarea.className = 'edit-textarea';
-  textarea.value = msg.content;
-  textarea.rows = Math.min(5, msg.content.split('\n').length);
+  textarea.value = textContent;
+  textarea.rows = Math.min(5, textContent.split('\n').length || 1);
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn btn-primary btn-sm';
@@ -450,13 +481,18 @@ function editMessage(msg) {
   textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 
   const cleanup = () => {
-    bubbleEl.innerHTML = renderMarkdown(msg.content);
+    bubbleEl.innerHTML = renderMessageContent(msg.content);
   };
 
   const submitEdit = () => {
     const newText = textarea.value.trim();
     if (!newText) return;
-    msg.content = newText;
+    if (typeof msg.content === 'string') {
+      msg.content = newText;
+    } else if (Array.isArray(msg.content)) {
+      const textPart = msg.content.find(p => p.type === 'text');
+      if (textPart) textPart.text = newText;
+    }
     // Re-render up to this message
     renderMessages();
     els.input.focus();
@@ -668,6 +704,26 @@ function renderMarkdown(text) {
   return result;
 }
 
+function renderMessageContent(content) {
+  if (!content) return '';
+  if (typeof content === 'string') {
+    return renderMarkdown(content);
+  }
+  if (Array.isArray(content)) {
+    let html = '';
+    for (const part of content) {
+      if (part.type === 'text') {
+        html += renderMarkdown(part.text || '');
+      } else if (part.type === 'image_url' && part.image_url?.url) {
+        const src = part.image_url.url;
+        html += '<img src="' + src + '" alt="Attached image" class="msg-image" onclick="window.open(this.src, \'_blank\')">';
+      }
+    }
+    return html;
+  }
+  return renderMarkdown(String(content));
+}
+
 /* ── Copy Code ────────────────────────────────────────────── */
 function copyCode(btn) {
   const pre = btn.closest('pre');
@@ -720,9 +776,7 @@ function appendMessageBubble(msg) {
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  if (msg.content) {
-    bubble.innerHTML = renderMarkdown(msg.content);
-  }
+  bubble.innerHTML = renderMessageContent(msg.content);
   contentWrap.appendChild(bubble);
 
   const actionsDiv = document.createElement('div');
@@ -734,7 +788,14 @@ function appendMessageBubble(msg) {
   copyBtn.title = 'Copy message';
   copyBtn.onclick = (e) => {
     e.stopPropagation();
-    const text = msg.content;
+    let text;
+    if (typeof msg.content === 'string') {
+      text = msg.content;
+    } else if (Array.isArray(msg.content)) {
+      text = msg.content.map(p => p.type === 'text' ? p.text : '[Image]').join('\n');
+    } else {
+      text = String(msg.content);
+    }
     navigator.clipboard.writeText(text).then(() => {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = '\u{1F4CB}'; }, 2000);
@@ -787,10 +848,68 @@ function scrollToBottom() {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
+/* ── Image Attachments ────────────────────────────────────── */
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleFiles(files) {
+  const maxSize = 20 * 1024 * 1024;
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) {
+      showToast(file.name + ' is not an image', 'error');
+      continue;
+    }
+    if (file.size > maxSize) {
+      showToast(file.name + ' is too large (max 20MB)', 'error');
+      continue;
+    }
+    const dataUrl = await fileToDataUrl(file);
+    state.attachments.push({
+      dataUrl,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+  }
+  renderAttachPreview();
+}
+
+function renderAttachPreview() {
+  const container = els['attach-preview'];
+  if (state.attachments.length === 0) {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  let html = '';
+  for (let i = 0; i < state.attachments.length; i++) {
+    const att = state.attachments[i];
+    html += '<div class="attach-item">' +
+      '<img src="' + att.dataUrl + '" class="attach-thumb" alt="' + esc(att.name) + '">' +
+      '<button class="attach-remove" data-index="' + i + '" title="Remove image">&times;</button>' +
+      '</div>';
+  }
+  container.innerHTML = html;
+  container.querySelectorAll('.attach-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.index);
+      state.attachments.splice(idx, 1);
+      renderAttachPreview();
+    });
+  });
+}
+
 /* ── Sending Messages ─────────────────────────────────────── */
 async function sendMessage() {
   const text = els.input.value.trim();
-  if (!text || state.streaming) return;
+  if ((!text && state.attachments.length === 0) || state.streaming) return;
 
   // Ensure we have a conversation
   if (!state.currentId) {
@@ -804,9 +923,27 @@ async function sendMessage() {
     }
   }
 
+  // Build content: plain string if no attachments, array of parts otherwise
+  let content;
+  if (state.attachments.length === 0) {
+    content = text;
+  } else {
+    content = [{ type: 'text', text: text || ' ' }];
+    for (const att of state.attachments) {
+      content.push({
+        type: 'image_url',
+        image_url: { url: att.dataUrl },
+      });
+    }
+  }
+
   // Add user message
-  state.messages.push({ role: 'user', content: text });
+  state.messages.push({ role: 'user', content });
+
+  // Clear input and attachments
+  state.attachments = [];
   els.input.value = '';
+  renderAttachPreview();
   autoResizeInput();
   renderMessages();
 
@@ -823,6 +960,7 @@ async function performStreamingSend() {
   state.streaming = true;
   state.abortController = new AbortController();
   els['btn-send'].classList.add('hidden');
+  els['btn-attach'].classList.add('hidden');
   els['btn-stop'].classList.remove('hidden');
   els.input.disabled = true;
 
@@ -929,6 +1067,7 @@ async function performStreamingSend() {
     state.streaming = false;
     state.abortController = null;
     els['btn-send'].classList.remove('hidden');
+    els['btn-attach'].classList.remove('hidden');
     els['btn-stop'].classList.add('hidden');
     els.input.disabled = false;
     els.input.focus();
@@ -1032,6 +1171,61 @@ function init() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  });
+
+  // Paste handler for images
+  els.input.addEventListener('paste', async (e) => {
+    const items = e.clipboardData.items;
+    let hasImage = false;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        hasImage = true;
+        const file = item.getAsFile();
+        if (file) {
+          const dataUrl = await fileToDataUrl(file);
+          state.attachments.push({
+            dataUrl,
+            name: file.name || 'pasted_image.png',
+            type: file.type,
+            size: file.size,
+          });
+        }
+      }
+    }
+    if (hasImage) {
+      renderAttachPreview();
+    }
+  });
+
+  // Drag and drop for images
+  const inputArea = els['input-area'];
+  inputArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    inputArea.classList.add('drag-over');
+  });
+  inputArea.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    inputArea.classList.remove('drag-over');
+  });
+  inputArea.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    inputArea.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      await handleFiles(files);
+    }
+  });
+
+  // Attach button
+  els['btn-attach'].addEventListener('click', () => {
+    els['file-input'].click();
+  });
+  els['file-input'].addEventListener('change', async (e) => {
+    if (e.target.files.length > 0) {
+      await handleFiles(e.target.files);
+      e.target.value = '';
     }
   });
 

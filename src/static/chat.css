@@ -695,6 +695,100 @@ body {
 .modal p { color: var(--text-muted); margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
+/* ── Attach Button ─────────────────────────────────────── */
+#btn-attach {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* ── Attachment Preview ────────────────────────────────── */
+#attach-preview {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0 2px;
+  flex-wrap: wrap;
+}
+#attach-preview.hidden { display: none; }
+
+.attach-item {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.attach-item .attach-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attach-item .attach-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.attach-item:hover .attach-remove { opacity: 1; }
+.attach-item .attach-remove:hover { background: rgba(218,54,51,0.9); }
+
+/* ── Images in Messages ────────────────────────────────── */
+.message .bubble .msg-image {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  margin: 6px 0;
+  display: block;
+  object-fit: contain;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.message .bubble .msg-image:hover { opacity: 0.9; }
+
+.message .bubble .msg-image + .msg-image {
+  margin-top: 4px;
+}
+
+/* ── Drag Over State ───────────────────────────────────── */
+#input-area.drag-over {
+  position: relative;
+}
+#input-area.drag-over::after {
+  content: 'Drop images here';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  z-index: 100;
+  pointer-events: none;
+}
+
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 700px) {
   #header { padding: 6px 10px; }
