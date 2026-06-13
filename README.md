@@ -36,6 +36,7 @@ No code changes. No retry logic. No 429 errors breaking your app.
 | **4-Mode Context Management** | Static, Dynamic, Reservoir, Adaptive — with extractive summarization to preserve long conversations. |
 | **Consistent Output Style** | Universal style guidance + response normalizers eliminate provider-specific quirks. Opt out per-request via `X-Use-ServerSide-System-Prompt: false`. |
 | **Intent-Based Routing** | `model_type=coding`, `model_scale=large`, `model_name=deepseek` — tell us what you need, not which API to call. |
+| **[NEW] Image-aware Routing** | Upload images in chat; the dispatcher automatically routes to vision-capable models. Explicit text-only model pick? Falls back within the same provider, then any provider. |
 | **Real-time Streaming** | Full SSE streaming from every backend provider. |
 | **Chat UI** | Built-in web chat interface at [`/chat`](http://localhost:8000/chat) — streaming, conversation history, dark/light mode, Browser or Server storage. |
 | **Local + Cloud** | Mix your private Ollama instance with cloud free tiers seamlessly. |
@@ -52,7 +53,7 @@ No code changes. No retry logic. No 429 errors breaking your app.
 | **Self-hosters** | Combine Ollama privacy with cloud capacity |
 | **Researchers** | Batch queries across providers for higher throughput |
 
-**Community:** 120+ GitHub stars, 10+ forks, 20+ models from 5 providers included. Active development — 70+ commits in 12 weeks.
+**Community:** 120+ GitHub stars, 10+ forks, 20+ models from 6 providers included. Active development — 70+ commits in 12 weeks.
 
 ---
 
@@ -79,7 +80,7 @@ python -m tests.test_models_availability
 ```
 
 <details>
-<summary>Click to see expected output (21/21 models available)</summary>
+<summary>Click to see expected output (22/22 models available)</summary>
 
 ```
 ======================================================================
@@ -92,6 +93,7 @@ MODEL AVAILABILITY SUMMARY
 ✅ PASS | Groq            | openai/gpt-oss-120b                           | Success
 ✅ PASS | Groq            | openai/gpt-oss-safeguard-20b                  | Success
 ✅ PASS | Groq            | groq/compound                                 | Success
+✅ PASS | Groq            | meta-llama/llama-4-scout-17b-16e-instruct     | Success
 ✅ PASS | Mistral         | mistral-large-latest                          | Success
 ✅ PASS | Mistral         | mistral-medium-latest                         | Success
 ✅ PASS | Mistral         | codestral-latest                              | Success
@@ -107,7 +109,7 @@ MODEL AVAILABILITY SUMMARY
 ✅ PASS | Nvidia          | moonshotai/kimi-k2.6                          | Success
 ✅ PASS | Nvidia          | mistralai/mistral-nemotron                    | Success
 ======================================================================
-TOTAL: 21/21 models available.
+TOTAL: 22/22 models available.
 ======================================================================
 ```
 
@@ -178,6 +180,7 @@ A full-featured web chat UI ships with the server at [`/chat`](http://localhost:
 - **Conversation history** — persist chats in your browser (`localStorage`) or on the server (opt-in)
 - **Conversation management** — sidebar with search, rename, copy, delete
 - **Edit & delete messages** — fix typos or prune unwanted branches mid-conversation
+- **Image upload** — file picker, paste, drag-and-drop; images rendered inline in message bubbles (click to expand)
 - **Intent-based routing** — switch models via the dropdown (`meta-model` or specific `Provider/Model`)
 - **Dark/light mode** — toggle in the header, preference saved
 
@@ -212,6 +215,15 @@ Request → Groq (rate limited)
         → Retry → Mistral
         → Success ✓
 ```
+
+### Image-Aware Routing
+
+When a user message contains `image_url` content parts (as defined by the OpenAI Chat Completions spec), the dispatcher automatically restricts model selection to vision-capable models:
+
+- **Meta-model routing** — only models with `modality: "vision"` in the registry are considered during provider/model selection.
+- **Specific routing** — if the user explicitly requests a text-only model (e.g. `nvidia/minimaxai/minimax-m2.7`), the dispatcher first searches for a vision model within the same provider (e.g. `nvidia/moonshotai/kimi-k2.6`), then falls back to any provider's vision model. If none are available, a clear error is returned.
+
+This behavior is driven by the per-model `modality` field in `provider_model_limits.json`. Models without image support remain available for text-only requests.
 
 ### Consistent Output Style
 Despite switching between providers, every response is homogenized:
@@ -272,7 +284,7 @@ The Reservoir mode uses a **TF-scoring algorithm** to identify the most informat
 | `model` | string | `"meta-model"` for auto-routing, or `"provider/model"` for direct |
 | `messages` | array | Standard OpenAI message format. `content` accepts `str` or `list[{type, text, ...}]` for multi-modal messages. |
 | `stream` | bool | Enable SSE streaming |
-| `model_type` | string | Filter: `text`, `coding`, `ocr` |
+| `model_type` | string | Filter: `text`, `coding`, `image`, `speech`, `embedding`, `moderation`, `ocr` |
 | `model_scale` | string | Filter: `large`, `medium`, `small` |
 | `model_name` | string | Match model name substring |
 
@@ -281,7 +293,7 @@ The Reservoir mode uses a **TF-scoring algorithm** to identify the most informat
 curl http://localhost:8000/v1/models?type=coding&scale=large
 ```
 
-> **Multi-modal content:** The `content` field in each message accepts either a plain string or a list of content parts (e.g. `[{"type": "text", "text": "..."}, {"type": "image_url", "url": "..."}]`), matching the OpenAI Chat Completions spec. Text parts are flattened before being sent to providers that don't support structured content.
+> **Multi-modal content:** The `content` field in each message accepts either a plain string or a list of content parts (e.g. `[{"type": "text", "text": "..."}, {"type": "image_url", "url": "..."}]`), matching the OpenAI Chat Completions spec. When image parts are present, the dispatcher automatically routes to vision-capable models only (see [Image-Aware Routing](#image-aware-routing)). Text parts are flattened before being sent to providers that don't support structured content.
 >
 > **Agent frameworks:** To send the client's `messages` array verbatim without server-side system prompt injection, set `X-Use-ServerSide-System-Prompt: false`. See [Agent Framework Support](#agent-framework-support).
 
@@ -302,7 +314,7 @@ curl http://localhost:8000/v1/usage
 
 ---
 
-## Tutorial: Build a Free AI CLI in 3 Files
+## Tutorial: Build a Free AI CLI
 
 **`chat.py`** — A terminal chatbot that uses RelayFreeLLM with session persistence:
 ```python
@@ -323,11 +335,39 @@ while True:
 
 Run it. No API bill. No rate limits. That's the point.
 
+**`vision.py`** — Send an image; the dispatcher automatically routes to a vision-capable model:
+```python
+import base64
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="relay-free")
+
+with open("photo.jpg", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode("utf-8")
+
+response = client.chat.completions.create(
+    model="meta-model",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+        ]
+    }]
+)
+print(response.choices[0].message.content)
+```
+
+Run both. No API bill. No rate limits.
+
 ---
 
 ## Provider Model Limits (Optional)
 
 Default rate limits in [`provider_model_limits.json`](src/provider_model_limits.json) work for most use cases. If you hit provider caps, adjust the limits for your account tier — either by editing the file directly or using the **Admin Dashboard** (`http://localhost:8000/admin`):
+
+<details>
+<summary>Click to see example with all fields</summary>
 
 ```json
 {
@@ -337,18 +377,43 @@ Default rate limits in [`provider_model_limits.json`](src/provider_model_limits.
       "models": [
         {
           "name": "llama-3.3-70b-versatile",
+          "type": "text",
+          "scale": "large",
           "limits": {
+            "requests_per_second": 1,
             "requests_per_minute": 30,
             "requests_per_hour": 1800,
-            "tokens_per_minute": 12000
+            "requests_per_day": 1000,
+            "tokens_per_minute": 12000,
+            "tokens_per_hour": 30000,
+            "tokens_per_day": 100000
           },
-          "max_context_length": 131072
+          "Max_Context_Length": 131000,
+          "modality": "text"
+        },
+        {
+          "name": "meta-llama/llama-4-scout-17b-16e-instruct",
+          "type": "text",
+          "scale": "large",
+          "limits": {
+            "requests_per_second": 1,
+            "requests_per_minute": 30,
+            "requests_per_hour": 1800,
+            "requests_per_day": 1000,
+            "tokens_per_minute": 12000,
+            "tokens_per_hour": 30000,
+            "tokens_per_day": 100000
+          },
+          "Max_Context_Length": 128000,
+          "modality": "vision"
         }
       ]
     }
   ]
 }
 ```
+
+</details>
 
 ---
 
@@ -374,11 +439,11 @@ Default rate limits in [`provider_model_limits.json`](src/provider_model_limits.
         │                                    └──────────┘ │
         └─────────────────────────┬───────────────────────┘
                                   │
-      ┌──────────┬──────────┬─────┴────┬──────────┬──────────┐
-      ▼          ▼          ▼          ▼          ▼          ▼
- ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
- │ Gemini │ │  Groq  │ │ Mistral│ │Cerebras│ │DeepSeek│ │ Ollama │
- └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
+      ┌──────────┬──────────┬─────┴────┬──────────┬──────────┬──────────┐
+      ▼          ▼          ▼          ▼          ▼          ▼          ▼
+ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+ │ Gemini │ │  Groq  │ │ Mistral│ │Cerebras│ │DeepSeek│ │ Ollama │ │ NVIDIA │
+ └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
 ```
 
 </details>
@@ -390,6 +455,7 @@ Default rate limits in [`provider_model_limits.json`](src/provider_model_limits.
 - [x] Web dashboard for live provider status
 - [ ] Persistent rate limit state (survives restarts)
 - [ ] Prompt caching layer
+- [x] Image upload routing (vision models)
 - [ ] Embeddings & image generation routing
 - [ ] One-command Docker deploy
 
