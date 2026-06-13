@@ -23,6 +23,7 @@ class ApiProvider:
         model_type: str | None = None,
         model_scale: str | None = None,
         model_name: str | None = None,
+        modality: str | None = None,
     ) -> tuple[ApiLimitsTracker | None, float]:
         """
         Try to route request within this provider.
@@ -49,6 +50,10 @@ class ApiProvider:
                 m
                 for m in filtered_models
                 if model_name.lower() in m.model_name.lower()
+            ]
+        if modality:
+            filtered_models = [
+                m for m in filtered_models if m.modality == modality
             ]
 
         if not filtered_models:

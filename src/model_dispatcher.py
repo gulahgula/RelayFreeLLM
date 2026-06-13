@@ -35,6 +35,16 @@ from typing import List, Optional, Union
 import asyncio
 
 
+def _request_contains_images(request: ChatCompletionRequest) -> bool:
+    """Check if any user message in the request contains image_url content parts."""
+    for msg in request.messages:
+        if msg.role == "user" and isinstance(msg.content, list):
+            for part in msg.content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    return True
+    return False
+
+
 class ModelDispatcher:
     def __init__(
         self,
@@ -89,6 +99,7 @@ class ModelDispatcher:
             None,
         )
         user_content = last_user_msg.content if last_user_msg else user_prompt
+        has_images = _request_contains_images(request)
         sys_prompt = request.get_system_prompt()
         temperature = request.temperature
         max_tokens = request.max_tokens
@@ -145,6 +156,44 @@ class ModelDispatcher:
                 self.logger.info(
                     f"Specific routing requested: {provider_name} ({model_name})"
                 )
+
+                # Vision fallback for specific routing: if request contains
+                # images but the selected model doesn't support them, first
+                # try a vision model from the same provider, then any provider.
+                if has_images:
+                    model_modality = self._get_model_modality(
+                        provider_name, model_name
+                    )
+                    if model_modality != "vision":
+                        vision_model = self._find_vision_model(provider_name)
+                        if vision_model:
+                            self.logger.info(
+                                f"Redirecting {provider_name}/{model_name} → "
+                                f"{vision_model} for image request (same provider)"
+                            )
+                            model_name = vision_model
+                        else:
+                            try:
+                                new_provider, new_model, _ = self.selector.select(
+                                    user_prompt,
+                                    sys_prompt,
+                                    modality="vision",
+                                    model_type=request.model_type,
+                                    model_scale=request.model_scale,
+                                )
+                                self.logger.info(
+                                    f"Redirecting {provider_name}/{model_name} → "
+                                    f"{new_provider}/{new_model} for image request "
+                                    f"(no vision model in {provider_name})"
+                                )
+                                provider_name = new_provider
+                                model_name = new_model
+                            except RuntimeError:
+                                return build_error_response(
+                                    error_message="Request contains images but no "
+                                    "vision-capable models are available.",
+                                    attempt=1,
+                                )
 
                 start_time = time.time()
                 model_resp = await self.call_provider_api(
@@ -231,6 +280,7 @@ class ModelDispatcher:
                     model_type=request.model_type,
                     model_scale=request.model_scale,
                     model_name=affinity_model_name if (attempt == 0 and preferred_provider) else request.model_name,
+                    modality="vision" if has_images else None,
                 )
 
                 if wait_time > 0:
@@ -545,6 +595,16 @@ class ModelDispatcher:
             if getattr(model, "model_name", None) == model_name:
                 return getattr(model, "modality", "text")
         return "text"
+
+    def _find_vision_model(self, provider_name: str) -> str | None:
+        """Find the first vision-capable model in a given provider."""
+        provider = self.selector.providers.get(provider_name)
+        if not provider:
+            return None
+        for model in provider.models:
+            if getattr(model, "modality", "text") == "vision":
+                return model.model_name
+        return None
 
     def _calculate_target_context_tokens(
         self,
