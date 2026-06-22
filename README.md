@@ -120,6 +120,17 @@ TOTAL: 22/22 models available.
 python -m src.server
 ```
 
+### 4.1 Run with Docker
+Build and run the minimal Docker image from the project root:
+```bash
+docker build -t relayfreellm .
+```
+
+Run the container with your `.env` file mounted so API keys and provider config are available:
+```bash
+docker run --rm --env-file .env -p 8000:8000 relayfreellm
+```
+
 ### 5. Open the Admin Dashboard
 Once the server is running, open [`http://localhost:8000/admin`](http://localhost:8000/admin) in your browser to manage rate limits, add/remove models, and monitor usage in real time.
 

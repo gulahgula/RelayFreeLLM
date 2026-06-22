@@ -1,0 +1,22 @@
+.env
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+build/
+dist/
+*.egg-info
+tests/
+logs/
+.idea/
+.vscode/
+*.db
+
+# Dockerfile and requirements kept
+Dockerfile
+requirements.txt
