@@ -103,10 +103,10 @@ MODEL AVAILABILITY SUMMARY
 ✅ PASS | Mistral         | mistral-medium                                | Success
 ✅ PASS | Mistral         | codestral-2508                                | Success
 ✅ PASS | Gemini          | gemini-2.5-flash                              | Success
-✅ PASS | Nvidia          | minimaxai/minimax-m2.7                        | Success
+✅ PASS | Nvidia          | minimaxai/minimax-m3                          | Success
 ✅ PASS | Nvidia          | openai/gpt-oss-120b                           | Success
-✅ PASS | Nvidia          | stepfun-ai/step-3.5-flash                     | Success
-✅ PASS | Nvidia          | moonshotai/kimi-k2.6                          | Success
+✅ PASS | Nvidia          | stepfun-ai/step-3.7-flash                     | Success
+✅ PASS | Nvidia          | z-ai/glm-5.2                                  | Success
 ✅ PASS | Nvidia          | mistralai/mistral-nemotron                    | Success
 ======================================================================
 TOTAL: 22/22 models available.
