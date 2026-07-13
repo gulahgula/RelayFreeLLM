@@ -16,7 +16,3 @@ logs/
 .idea/
 .vscode/
 *.db
-
-# Dockerfile and requirements kept
-Dockerfile
-requirements.txt
