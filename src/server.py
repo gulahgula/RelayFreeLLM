@@ -164,6 +164,17 @@ async def restrict_public_surface(request: Request, call_next):
         return await call_next(request)
 
     path = request.url.path
+
+    # The wake-up page. Upstream has no "/" route at all, so this URL always
+    # answered FastAPI's bare {"detail":"Not Found"} — and this deployment sleeps
+    # after 15 idle minutes, so opening it in a browser to wake it is a normal
+    # thing to do. A 404 does wake the instance, but it reads like a broken
+    # service, which is a bad answer to "is it up?".
+    #
+    # Deliberately says nothing about what else is here.
+    if path == "/":
+        return JSONResponse({"status": "awake"})
+
     if path == "/health":
         return await call_next(request)
 
