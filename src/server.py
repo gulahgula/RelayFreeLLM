@@ -7,11 +7,14 @@ and makes them available to routes via app.state.
 """
 
 import logging
+import os
+import secrets
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
 
 from .config import settings
@@ -37,6 +40,23 @@ logger = ProjectLogger.get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle for shared state."""
     logger.info("=== RelayFreeLLM starting up ===")
+
+    # Say plainly which surface this instance is serving. A gateway that is open
+    # when you believed it keyed is the failure this fork exists to prevent, and
+    # it is invisible unless something says so at boot.
+    if RELAY_ALLOW_UI:
+        logger.warning(
+            "RELAY_ALLOW_UI=1 — every route is served and /v1 needs no key. "
+            "Correct for localhost; NEVER for a public deployment."
+        )
+    elif not RELAY_CLIENT_KEY:
+        logger.warning(
+            "RELAY_CLIENT_KEY is unset — the UI and admin routes are 404, but "
+            "/v1/* answers ANY caller. Set it here and set the same value as "
+            "RELAYFREE_API_KEY on the consumer."
+        )
+    else:
+        logger.info("surface: /health open, /v1/* keyed, everything else 404")
 
     # 1. Auto-discover provider clients (This asserts Python code & API keys are valid)
     registry = ProviderRegistry()
@@ -104,9 +124,68 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ─── Fork patch: restrict the public surface ─────────────────────────────────
+#
+# Upstream RelayFreeLLM has no client authentication, and on localhost:8000 that
+# is the right call. This fork exists because ours runs on a PUBLIC URL, where
+# the same defaults published the bundled chat UI, the admin API — including
+# `PUT /admin/api/limits`, which can RAISE the provider limits and make the
+# gateway over-call the upstream accounts — and the conversation store to anyone
+# who found the subdomain.
+#
+# An allowlist rather than a bearer check bolted onto every route, because the
+# one consumer of this deployment uses exactly two paths:
+#
+#   GET  /health                 the keep-warm ping, the host's health check, and
+#                                how a human wakes a spun-down free instance
+#   POST /v1/chat/completions    the only thing creai actually calls
+#
+# Everything else answers 404 rather than 401: nothing needs it, so there is no
+# reason to confirm to a scanner that it exists.
+#
+# Two switches, and the DEFAULT is locked, deliberately — an unset variable
+# should fail safe:
+#
+#   RELAY_ALLOW_UI=1    restore upstream behaviour wholesale (local development)
+#   RELAY_CLIENT_KEY    require `Authorization: Bearer <key>` on /v1/*
+#
+# The route lockdown does NOT depend on RELAY_CLIENT_KEY. That is what lets this
+# be deployed before the key exists on both sides: the large exposure (the UI and
+# the admin API) closes immediately, while /v1 keeps serving so generation does
+# not break in the gap. Startup logs loudly while that gap is open.
+
+RELAY_ALLOW_UI = os.getenv("RELAY_ALLOW_UI", "").strip() == "1"
+RELAY_CLIENT_KEY = os.getenv("RELAY_CLIENT_KEY", "").strip()
+
+
+@app.middleware("http")
+async def restrict_public_surface(request: Request, call_next):
+    if RELAY_ALLOW_UI:
+        return await call_next(request)
+
+    path = request.url.path
+    if path == "/health":
+        return await call_next(request)
+
+    if path.startswith("/v1/"):
+        if RELAY_CLIENT_KEY:
+            # compare_digest, not ==, so a wrong key cannot be recovered a
+            # character at a time from response timing.
+            presented = request.headers.get("authorization", "")
+            if not secrets.compare_digest(presented, f"Bearer {RELAY_CLIENT_KEY}"):
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return await call_next(request)
+
+    return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # No browser origin needs this deployment: the only consumer is a server.
+    # Upstream's ["*"] with allow_credentials=True is the browser half of the
+    # same hole (and is rejected by browsers anyway). RELAY_ALLOW_UI restores it
+    # for local use, where the bundled UI is the point.
+    allow_origins=["*"] if RELAY_ALLOW_UI else [],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
