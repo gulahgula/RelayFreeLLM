@@ -74,12 +74,12 @@ async def lifespan(app: FastAPI):
     # Scour out unsupported providers
     for p in list(registered_providers):
         if p not in active_providers:
-            logger.warning(f"Provider '{p}' has credentials/code but lacks JSON limits! Pruning.")
+            logger.info(f"Provider '{p}' has credentials/code but lacks JSON limits! Pruning.")
             registry.unregister(p)
 
     for p in list(json_providers):
         if p not in active_providers:
-            logger.warning(f"Provider '{p}' has JSON limits but lacks credentials/code! Pruning.")
+            logger.info(f"Provider '{p}' has JSON limits but lacks credentials/code! Pruning.")
             selector.remove_provider(p)
 
     # ABORT IF EMPTY

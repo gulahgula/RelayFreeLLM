@@ -6,6 +6,7 @@ The registry scans the module and registers all ApiInterface subclasses.
 """
 
 import importlib
+import logging
 import inspect
 import os
 import pkgutil
@@ -82,7 +83,10 @@ class ProviderRegistry:
                         instance = cls()
                         self.register(provider_name, instance)
                     except Exception as e:
-                        logger.warning(
+                        # A provider with no key set is a normal configuration, not a fault.
+                        level = logging.INFO if "is not set" in str(e) else logging.WARNING
+                        logger.log(
+                            level,
                             f"Failed to instantiate {cls.__name__} for provider "
                             f"'{provider_name}': {e} — skipping"
                         )
